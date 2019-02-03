@@ -3,6 +3,8 @@ package org.example.tictactoe;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.widget.ImageButton;
+import android.animation.Animator;
+import android.animation.AnimatorInflater;
 
 public class Tile {
 
@@ -112,5 +114,94 @@ public class Tile {
         return Owner.NEITHER;
     }
 
+    private void countCaptures(int totalX[], int totalO[]){
+        int capturedX, capturedO;
+        // 横方向をチェックする
+        for (int row=0; row < 3; row++){
+            capturedX = capturedO = 0;
+            for (int col=0; col < 3; col++){
+                Owner owner = mSubTiles[3 * row + col].getOwner();
+                if (owner == Owner.X || owner == Owner.BOTH) capturedX++;
+                if (owner == Owner.O || owner == Owner.BOTH) capturedO++;
+            }
+            totalX[capturedX]++;
+            totalO[capturedO]++;
+        }
 
+        // 縦方向をチェックする
+        for (int col=0; col < 3; col++){
+            capturedX = capturedO = 0;
+            for (int row=0; row < 3; row++){
+                Owner owner = mSubTiles[3 * row + col].getOwner();
+                if (owner == Owner.X || owner == Owner.BOTH) capturedX++;
+                if (owner == Owner.O || owner == Owner.BOTH) capturedO++;
+            }
+            totalX[capturedX]++;
+            totalO[capturedO]++;
+        }
+
+        // 対角線をチェックする
+        capturedX = capturedO = 0;
+        for (int diag = 0; diag < 3; diag++){
+            Owner owner = mSubTiles[3 * diag + diag].getOwner();
+            if (owner == Owner.X || owner == Owner.BOTH) capturedX++;
+            if (owner == Owner.O || owner == Owner.BOTH) capturedO++;
+        }
+        totalX[capturedX]++;
+        totalO[capturedO]++;
+        capturedX =  capturedO = 0;
+        for (int diag = 0; diag < 3; diag++){
+            Owner owner = mSubTiles[3 * diag + (2 - diag)].getOwner();
+            if (owner == Owner.X || owner == Owner.BOTH) capturedX++;
+            if (owner == Owner.O || owner == Owner.BOTH) capturedO++;
+        }
+        totalX[capturedX]++;
+        totalO[capturedO]++;
+    }
+
+    public int evaluate(){
+        switch (getOwner()) {
+            case X:
+                return 100;
+            case O:
+                return -100;
+            case NEITHER:
+                int total = 0;
+                if (getSubTiles() != null) {
+                    for (int tile = 0; tile < 9; tile++) {
+                        total += getSubTiles()[tile].evaluate();
+                    }
+                    int totalX[] = new int[4];
+                    int totalO[] = new int[4];
+                    countCaptures(totalX, totalO);
+                    total = total + 100
+                            + totalX[1] + 2 * totalX[2] + 8 * totalX[3]
+                            - totalO[1] - 2 * totalO[2] - 8 * totalO[3];
+                }
+               return  total;
+        }
+        return 0;
+    }
+
+    public Tile deepCopy(){
+        Tile tile = new Tile(mGame);
+        tile.setOwner(getOwner());
+        if (getSubTiles() != null){
+            Tile newTiles[] = new Tile[9];
+            Tile oldTiles[] = getSubTiles();
+            for (int child = 0; child < 9; child++){
+                newTiles[child] = oldTiles[child].deepCopy();
+            }
+            tile.setSubTiles(newTiles);
+        }
+        return tile;
+    }
+
+    public void animate(){
+        Animator anim = AnimatorInflater.loadAnimator(mGame.getActivity(), R.animator.tictactoe);
+        if (getView() != null){
+            anim.setTarget(getView());
+            anim.start();
+        }
+    }
 }
