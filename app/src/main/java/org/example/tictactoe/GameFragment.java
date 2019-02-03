@@ -9,6 +9,9 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.os.Handler;
+import android.media.AudioManager;
+import android.media.SoundPool;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -16,6 +19,10 @@ import java.util.Set;
 public class GameFragment extends Fragment {
 
     // データ構造が入る
+    private int mSoundX, mSoundO, mSoundMiss, mSoundRewind;
+    private SoundPool mSoundPool;
+    private float mVolume = 1f;
+    private Handler mHandler = new Handler();
     static private int mLargeIds[] = {R.id.large1, R.id.large2, R.id.large3,
             R.id.large4, R.id.large5, R.id.large6, R.id.large7, R.id.large8, R.id.large9};
     static private int mSmallIds[] = {R.id.small1, R.id.small2, R.id.small3,
@@ -36,6 +43,11 @@ public class GameFragment extends Fragment {
         // コンフィギュレーションの変更を跨いでこのフラグメントを維持する
         setRetainInstance(true);
         initGame();
+        mSoundPool = new SoundPool(3, AudioManager.STREAM_MUSIC, 0);
+        mSoundX = mSoundPool.load(getActivity(), R.raw.sergenious_movex, 1);
+        mSoundO = mSoundPool.load(getActivity(), R.raw.sergenious_moveo, 1);
+        mSoundMiss = mSoundPool.load(getActivity(), R.raw.erkanozan_miss, 1);
+        mSoundRewind = mSoundPool.load(getActivity(), R.raw.erkanozan_miss, 1);
     }
 
     @Nullable
@@ -85,9 +97,13 @@ public class GameFragment extends Fragment {
                 inner.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
+                        smallTile.animate();
                         if (isAvailable(smallTile)){
+                            mSoundPool.play(mSoundX, mVolume, mVolume, 1, 0, 1f);
                             makeMove(fLarge, fSmall);
-                            switchTurns();
+                            think();
+                        }else {
+                            mSoundPool.play(mSoundMiss, mVolume, mVolume, 1, 0, 1f);
                         }
                     }
                 });
@@ -106,6 +122,7 @@ public class GameFragment extends Fragment {
         Tile.Owner oldWinner = largeTile.getOwner();
         Tile.Owner winner = largeTile.findWinner();
         if (winner != oldWinner){
+            largeTile.animate();
             largeTile.setOwner(winner);
         }
         winner = mEntireBoard.findWinner();
@@ -121,6 +138,57 @@ public class GameFragment extends Fragment {
         mPlayer = mPlayer == Tile.Owner.X ? Tile.Owner.O : Tile.Owner.X;
     }
 
+    // 思考のシュミレーション
+    private void think(){
+        ((GameActivity) getActivity()).startThinking();
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (getActivity() == null) return;
+                if (mEntireBoard.getOwner() == Tile.Owner.NEITHER){
+                    int move[] = new int[2];
+                    pickMove(move);
+                    if (move[0] != -1 && move[1] != -1){
+                        switchTurns();
+                        mSoundPool.play(mSoundO, mVolume, mVolume, 1, 0, 1f);
+                        makeMove(move[0], move[1]);
+                        switchTurns();
+                    }
+                }
+                ((GameActivity) getActivity()).stopThinking();
+            }
+        }, 1000);
+    }
+
+    // 適切な手の選択
+    private void pickMove(int move[]){
+        Tile.Owner opponent = mPlayer == Tile.Owner.X ? Tile.Owner.O : Tile.Owner.X;
+        int bestLarge = -1;
+        int bestSmall = -1;
+        int bestValue = Integer.MAX_VALUE;
+        for (int large = 0; large < 9; large++){
+            for (int small = 0; small < 9; small++){
+                Tile smallTile =  mSmallTiles[large][small];
+                if (isAvailable(smallTile)){
+                    // 指し手を試してスコアを計算する
+                    Tile newBoard = mEntireBoard.deepCopy();
+                    newBoard.getSubTiles()[large].getSubTiles()[small].setOwner(opponent);
+                    int value = newBoard.evaluate();
+                    Log.d("UT3",
+                            "Moving to " + large + ", " + small + " gives value " + value);
+                    if (value < bestValue){
+                        bestLarge = large;
+                        bestSmall = small;
+                        bestValue = value;
+                    }
+                }
+            }
+        }
+        move[0] = bestLarge;
+        move[1] = bestSmall;
+        Log.d("UT3", "Best move is " + bestLarge + ", " + bestSmall);
+    }
+
     // ゲームのリスタート
     public void restartGame(){
         initGame();
@@ -134,6 +202,7 @@ public class GameFragment extends Fragment {
     }
 
     private void addAvailable(Tile tile){
+        tile.animate();
         mAvailable.add(tile);
     }
 
